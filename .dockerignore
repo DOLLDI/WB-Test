@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.bak
+users.db
+data/
+proxyapi_errors.log
+__pycache__/
+*.py[cod]
+*.sqlite
+*.sqlite3
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+.git/
+.gitignore
