@@ -22,33 +22,40 @@ class WBReviewHTML:
 
 
 def parse_wb_product_html(url: str) -> WBProductHTML:
-    resp = requests.get(url, headers={
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    })
+    # resp = requests.get(url, headers={
+    #     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    # })
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+
+    resp = requests.get(url, headers=headers, timeout=10)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
     article = url.split("/")[-2]
     title = soup.find("h1").text.strip() if soup.find("h1") else ""
     price = None
-    price_tag = soup.select_one("span.price-block__final-price")
+    price_tag = soup.select_one("[class*='price']")
     if price_tag:
         price = float(price_tag.text.replace("₽", "").replace(" ", "").replace(",", "."))
     rating = None
-    rating_tag = soup.select_one("span.product-rating__rating")
+    rating_tag = soup.select_one("[class*='rating']")
     if rating_tag:
         try:
             rating = float(rating_tag.text.replace(",", "."))
         except Exception:
             pass
     review_count = 0
-    review_count_tag = soup.select_one("span.product-rating__count")
+    review_count_tag = soup.select_one("[class*='count']")
     if review_count_tag:
         try:
             review_count = int(review_count_tag.text.replace("отзывов", "").replace("отзыв", "").replace(" ", ""))
         except Exception:
             pass
     image_url = ""
-    img_tag = soup.select_one("img.carousel__main-img")
+    img_tag = soup.find("img")
     if img_tag and img_tag.has_attr("src"):
         image_url = img_tag["src"]
     description = ""

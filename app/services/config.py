@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     TELEGRAM_SYSTEM_PROMPT: str = ""
     VK_SYSTEM_PROMPT: str = ""
     WB_SUMMARY_PROMPT: str = ""
+    WB_PROXY_URL: str = ""
+    WB_ENABLE_ROTATING_PROXIES: bool = False
 
     class Config:
         env_file = ".env"

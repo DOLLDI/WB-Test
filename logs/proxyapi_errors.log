@@ -1,3 +1,95 @@
 2026-05-16 02:28:14,643 ERROR API error: WB HTML fallback: start parsing article=253818595
 2026-05-16 02:28:14,973 ERROR API error: WB HTML parse error: 498 Client Error:  for url: https://www.wildberries.ru/catalog/253818595/detail.aspx
 2026-05-16 02:28:15,031 ERROR API error: WBError: Не удалось обработать данные Wildberries. Попробуйте позже.
+2026-05-16 19:35:25,863 ERROR API error: WB STATUS: 404
+2026-05-16 19:35:25,863 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 19:35:25,863 ERROR API error: WB TEXT: 
+2026-05-16 19:35:25,921 ERROR API error: WB STATUS: 404
+2026-05-16 19:35:25,922 ERROR API error: WB URL: https://card.wb.ru/cards/detail
+2026-05-16 19:35:25,922 ERROR API error: WB TEXT: 
+2026-05-16 19:35:25,922 ERROR API error: WB HTML fallback: start parsing article=253818595
+2026-05-16 19:35:26,336 ERROR API error: WB HTML parse error: 498 Client Error:  for url: https://www.wildberries.ru/catalog/253818595/detail.aspx
+2026-05-16 19:35:26,336 ERROR API error: WBError: Не удалось обработать данные Wildberries. Попробуйте позже.
+2026-05-16 19:47:30,518 ERROR API error: WB STATUS: 404
+2026-05-16 19:47:30,518 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 19:47:30,518 ERROR API error: WB TEXT: 
+2026-05-16 19:47:30,572 ERROR API error: WB STATUS: 404
+2026-05-16 19:47:30,572 ERROR API error: WB URL: https://card.wb.ru/cards/detail
+2026-05-16 19:47:30,572 ERROR API error: WB TEXT: 
+2026-05-16 19:47:30,573 ERROR API error: WB HTML fallback: start parsing article=253818595
+2026-05-16 19:47:30,741 ERROR API error: WB HTML parse error: 498 Client Error:  for url: https://www.wildberries.ru/catalog/253818595/detail.aspx
+2026-05-16 19:47:30,961 ERROR API error: WBError: Не удалось обработать данные Wildberries. Попробуйте позже.
+2026-05-16 19:47:39,082 ERROR API error: WB STATUS: 404
+2026-05-16 19:47:39,082 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 19:47:39,082 ERROR API error: WB TEXT: 
+2026-05-16 19:47:39,139 ERROR API error: WB STATUS: 404
+2026-05-16 19:47:39,139 ERROR API error: WB URL: https://card.wb.ru/cards/detail
+2026-05-16 19:47:39,139 ERROR API error: WB TEXT: 
+2026-05-16 19:47:39,139 ERROR API error: WB HTML fallback: start parsing article=253818595
+2026-05-16 19:47:39,306 ERROR API error: WB HTML parse error: 498 Client Error:  for url: https://www.wildberries.ru/catalog/253818595/detail.aspx
+2026-05-16 19:47:39,522 ERROR API error: WBError: Не удалось обработать данные Wildberries. Попробуйте позже.
+2026-05-16 19:48:10,241 ERROR API error: WB STATUS: 404
+2026-05-16 19:48:10,241 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 19:48:10,241 ERROR API error: WB TEXT: 
+2026-05-16 19:48:10,303 ERROR API error: WB STATUS: 404
+2026-05-16 19:48:10,303 ERROR API error: WB URL: https://card.wb.ru/cards/detail
+2026-05-16 19:48:10,303 ERROR API error: WB TEXT: 
+2026-05-16 19:48:10,303 ERROR API error: WB HTML fallback: start parsing article=253818595
+2026-05-16 19:48:10,463 ERROR API error: WB HTML parse error: 498 Client Error:  for url: https://www.wildberries.ru/catalog/253818595/detail.aspx
+2026-05-16 19:48:10,566 ERROR API error: WBError: Не удалось обработать данные Wildberries. Попробуйте позже.
+2026-05-16 20:06:51,726 ERROR API error: WB STATUS: 404
+2026-05-16 20:06:51,726 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 20:06:51,726 ERROR API error: WB TEXT: 
+2026-05-16 20:06:51,782 ERROR API error: WB STATUS: 404
+2026-05-16 20:06:51,782 ERROR API error: WB URL: https://card.wb.ru/cards/detail
+2026-05-16 20:06:51,782 ERROR API error: WB TEXT: 
+2026-05-16 20:06:51,783 ERROR API error: WB HTML fallback: start parsing article=253818595
+2026-05-16 20:06:51,950 ERROR API error: WB HTML parse error: 498 Client Error:  for url: https://www.wildberries.ru/catalog/253818595/detail.aspx
+2026-05-16 20:06:52,182 ERROR API error: WBError: Не удалось обработать данные Wildberries. Попробуйте позже.
+2026-05-16 20:12:51,222 ERROR API error: WB STATUS: 404
+2026-05-16 20:12:51,222 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 20:12:51,222 ERROR API error: WB TEXT: 
+2026-05-16 20:12:51,278 ERROR API error: WB STATUS: 404
+2026-05-16 20:12:51,278 ERROR API error: WB URL: https://card.wb.ru/cards/detail
+2026-05-16 20:12:51,278 ERROR API error: WB TEXT: 
+2026-05-16 20:12:51,278 ERROR API error: WB HTML fallback: start parsing article=253818595
+2026-05-16 20:12:51,445 ERROR API error: WB HTML parse error: 498 Client Error:  for url: https://www.wildberries.ru/catalog/253818595/detail.aspx
+2026-05-16 20:12:51,667 ERROR API error: WBError: Не удалось обработать данные Wildberries. Попробуйте позже.
+2026-05-16 20:20:05,279 ERROR API error: WB STATUS: 404
+2026-05-16 20:20:05,279 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 20:20:05,279 ERROR API error: WB TEXT: 
+2026-05-16 20:20:05,338 ERROR API error: WB STATUS: 404
+2026-05-16 20:20:05,338 ERROR API error: WB URL: https://card.wb.ru/cards/detail
+2026-05-16 20:20:05,338 ERROR API error: WB TEXT: 
+2026-05-16 20:20:05,338 ERROR API error: WB HTML fallback: start parsing article=253818595
+2026-05-16 20:20:05,513 ERROR API error: WB HTML parse error: 498 Client Error:  for url: https://www.wildberries.ru/catalog/253818595/detail.aspx
+2026-05-16 20:20:05,716 ERROR API error: WBError: Не удалось обработать данные Wildberries. Попробуйте позже.
+2026-05-16 20:26:14,235 ERROR API error: WB STATUS: 404
+2026-05-16 20:26:14,235 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 20:26:14,235 ERROR API error: WB TEXT: 
+2026-05-16 20:26:14,291 ERROR API error: WB STATUS: 404
+2026-05-16 20:26:14,291 ERROR API error: WB URL: https://card.wb.ru/cards/detail
+2026-05-16 20:26:14,291 ERROR API error: WB TEXT: 
+2026-05-16 20:26:14,291 ERROR API error: WB HTML fallback: start parsing article=253818595
+2026-05-16 20:26:14,454 ERROR API error: WB HTML parse error: 498 Client Error:  for url: https://www.wildberries.ru/catalog/253818595/detail.aspx
+2026-05-16 20:26:14,701 ERROR API error: WBError: Не удалось обработать данные Wildberries. Попробуйте позже.
+2026-05-16 20:26:32,103 ERROR API error: WB STATUS: 404
+2026-05-16 20:26:32,103 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 20:26:32,103 ERROR API error: WB DETECTED: Anti-bot protection (x-pow header present)
+2026-05-16 20:26:32,103 ERROR API error: WB PoW: status=invalid;challenge=7,8,1,afb0d8000000000,871f17b1-05e5-4936-bf0b-3a657d6f5e20,6389c55f-c549-40
+2026-05-16 20:30:43,943 ERROR API error: WB STATUS: 404
+2026-05-16 20:30:43,943 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 20:30:43,943 ERROR API error: WB DETECTED: Anti-bot protection (x-pow header present)
+2026-05-16 20:30:43,943 ERROR API error: WB PoW: status=invalid;challenge=7,8,1,b6663a000000000,3964e6d8-bc6a-4781-905c-d1f10cbf58d2,a2262542-09ce-4d
+2026-05-16 20:30:54,590 ERROR API error: WB STATUS: 404
+2026-05-16 20:30:54,590 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 20:30:54,590 ERROR API error: WB DETECTED: Anti-bot protection (x-pow header present)
+2026-05-16 20:30:54,590 ERROR API error: WB PoW: status=invalid;challenge=7,8,1,b32e70000000000,76b0362c-74d4-4797-aa5c-5669ebad0562,481fa361-d394-45
+2026-05-16 20:31:21,116 ERROR API error: WB STATUS: 404
+2026-05-16 20:31:21,116 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 20:31:21,116 ERROR API error: WB DETECTED: Anti-bot protection (x-pow header present)
+2026-05-16 20:31:21,116 ERROR API error: WB PoW: status=invalid;challenge=7,8,1,9fa2a0000000000,417fe1aa-33c2-4ead-abf7-414d03cd5a2a,17c46c78-3dd3-44
+2026-05-16 20:31:30,736 ERROR API error: WB STATUS: 404
+2026-05-16 20:31:30,736 ERROR API error: WB URL: https://card.wb.ru/cards/v2/detail
+2026-05-16 20:31:30,736 ERROR API error: WB DETECTED: Anti-bot protection (x-pow header present)
+2026-05-16 20:31:30,736 ERROR API error: WB PoW: status=invalid;challenge=7,8,1,a7df4a000000000,251c162e-ffcb-44ed-bbda-53ee49b4fd58,e89a0dc2-6546-4b

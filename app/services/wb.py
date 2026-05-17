@@ -212,16 +212,67 @@ def _build_summary_user_prompt(product: WBProduct, reviews: list[WBReview]) -> s
     )
 
 
+# async def _fetch_json(client: httpx.AsyncClient, url: str, params: Optional[dict] = None) -> dict:
+#     response = await client.get(url, params=params, headers=WB_HEADERS)
+#     if response.status_code in (403, 429, 498):
+#         raise WBTemporaryUnavailable(WB_TEMPORARY_UNAVAILABLE_MESSAGE)
+#     if response.status_code == 404:
+#         raise WBNotFound("Товар не найден в Wildberries.")
+#     response.raise_for_status()
+#     try:
+#         payload = response.json()
+#     except Exception:
+#         log_api_error(f"WB NOT JSON RESPONSE: {response.text[:1000]}")
+#         raise WBError("WB вернул не JSON (антибот/блокировка)")
+#     if not isinstance(payload, dict):
+#         raise WBError("WB вернул неожиданный формат данных.")
+#     return payload
+
 async def _fetch_json(client: httpx.AsyncClient, url: str, params: Optional[dict] = None) -> dict:
     response = await client.get(url, params=params, headers=WB_HEADERS)
+
+    log_api_error(f"WB STATUS: {response.status_code}")
+    log_api_error(f"WB URL: {url}")
+    
+    # Check for anti-bot protection (PoW challenge)
+    x_pow = response.headers.get("x-pow", "")
+    if x_pow:
+        log_api_error(f"WB DETECTED: Anti-bot protection (x-pow header present)")
+        log_api_error(f"WB PoW: {x_pow[:100]}")
+        raise WBTemporaryUnavailable("WildBerries требует дополнительную верификацию. Попробуйте через минуту.")
+    
+    log_api_error(f"WB TEXT: {response.text[:300]}")
+
     if response.status_code in (403, 429, 498):
         raise WBTemporaryUnavailable(WB_TEMPORARY_UNAVAILABLE_MESSAGE)
+
     if response.status_code == 404:
-        raise WBNotFound("Товар не найден в Wildberries.")
+        raise WBNotFound("Товар не найден в Wildberries или WB ограничил доступ.")
+
     response.raise_for_status()
-    payload = response.json()
+
+    content_type = response.headers.get("content-type", "")
+    log_api_error(f"WB CONTENT-TYPE: {content_type}")
+
+    from json import JSONDecodeError
+
+    text = response.text[:1000]
+
+    try:
+        payload = response.json()
+    except (JSONDecodeError, ValueError):
+        log_api_error(f"WB METHOD: {response.request.method}")
+        log_api_error(f"WB STATUS: {response.status_code}")
+        log_api_error(f"WB CONTENT-TYPE: {response.headers.get('content-type')}")
+        log_api_error(f"WB URL: {response.request.url}")
+        log_api_error(f"WB RESPONSE LENGTH: {len(response.text)}")
+        log_api_error(f"WB NOT JSON RESPONSE: {text}")
+        raise WBError("WB антибот / не JSON ответ")
+
     if not isinstance(payload, dict):
-        raise WBError("WB вернул неожиданный формат данных.")
+        log_api_error(f"WB INVALID JSON TYPE: {type(payload)}")
+        raise WBError("WB вернул неожиданный формат данных")
+
     return payload
 
 
@@ -229,52 +280,125 @@ async def fetch_wb_product(article: str) -> WBProduct:
     candidate_calls = [
         (
             "https://card.wb.ru/cards/v2/detail",
-            {"appType": 1, "curr": "rub", "dest": -1257786, "spp": 30, "nm": article},
+            {
+                "appType": 1,
+                "curr": "rub",
+                "nm": article,
+            },
         ),
         (
             "https://card.wb.ru/cards/detail",
-            {"appType": 1, "curr": "rub", "dest": -1257786, "nm": article},
+            {
+                "appType": 1,
+                "curr": "rub",
+                "nm": article,
+            },
         ),
     ]
+    # candidate_calls = [
+    #     (
+    #         "https://card.wb.ru/cards/v2/detail",
+    #         {"appType": 1, "curr": "rub", "dest": -1257786, "nm": article},
+    #     ),
+    #     (
+    #         "https://card.wb.ru/cards/detail",
+    #         {"appType": 1, "curr": "rub", "dest": -1257786, "nm": article},
+    #     ),
+    # ]
+    # candidate_calls = [
+    #     (
+    #         "https://card.wb.ru/cards/v2/detail",
+    #         {"appType": 1, "curr": "rub", "nm": article},
+    #     ),
+    #     (
+    #         "https://card.wb.ru/cards/detail",
+    #         {"appType": 1, "curr": "rub", "nm": article},
+    #     ),
+    # ]
     last_error = None
+
+
+    # async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+    #     for url, params in candidate_calls:
+    #         try:
+    #             payload = await _fetch_json(client, url, params=params)
+    #             response_text = response.text
+    #             log_api_error(f"WB STATUS: {response.status_code}")
+    #             log_api_error(f"WB TEXT: {response_text[:500]}")
+    #             log_api_error(f"WB CALL: {url} PARAMS: {params}")
+    #             log_api_error(f"WB RAW RESPONSE: {payload}")
+    #             products = _extract_products(payload)
+                # if not products:
+                #     log_api_error(f"WB EMPTY PRODUCTS: {payload}")
+                #     continue
+            #     if not products:
+            #         log_api_error(f"""
+            #     WB EMPTY PRODUCTS
+            #     URL: {url}
+            #     PARAMS: {params}
+            #     PAYLOAD: {payload}
+            #     """)
+            #         continue
+            #     return _parse_card_product(products[0], article)
+            # except WBTemporaryUnavailable:
+            #     raise
+            # except Exception as error:
+            #     last_error = error
+            #     continue
+    # Fallback: парсинг HTML если API не дал результат
+
+
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
         for url, params in candidate_calls:
             try:
                 payload = await _fetch_json(client, url, params=params)
+
+                log_api_error(f"WB CALL: {url} PARAMS: {params}")
+                log_api_error(f"WB RAW RESPONSE: {payload}")
+
                 products = _extract_products(payload)
+
                 if not products:
+                    log_api_error(f"WB EMPTY PRODUCTS for {url}: {payload}")
                     continue
+
                 return _parse_card_product(products[0], article)
+
             except WBTemporaryUnavailable:
-                raise
+                # Временная блокировка - переходим на Playwright
+                last_error = None
+                continue
+            except WBNotFound:
+                # Товар не найден - переходим на Playwright
+                last_error = None
+                continue
             except Exception as error:
                 last_error = error
                 continue
-    # Fallback: парсинг HTML если API не дал результат
-    from app.services.error_logger import log_api_error
+    
+    log_api_error(f"WB API failed for article={article}, trying Playwright fallback")
     try:
-        log_api_error(f"WB HTML fallback: start parsing article={article}")
-        from app.services.wb_html_parser import parse_wb_product_html
-        url = f"https://www.wildberries.ru/catalog/{article}/detail.aspx"
-        product_html = parse_wb_product_html(url)
-        log_api_error(f"WB HTML fallback: parse result for article={article}: {product_html}")
+        log_api_error(f"WB Playwright fallback: start parsing article={article}")
+        from app.services.wb_playwright_parser import fetch_wb_product_via_browser
+        product_browser = await fetch_wb_product_via_browser(article)
+        log_api_error(f"WB Playwright fallback: parse result for article={article}: {product_browser}")
         return WBProduct(
-            article=product_html.article,
-            title=product_html.title,
+            article=product_browser.article,
+            title=product_browser.title,
             brand="",
-            price=product_html.price,
-            sale_price=product_html.price,
-            rating=product_html.rating,
-            review_count=product_html.review_count,
-            image_url=product_html.image_url,
-            product_url=product_html.product_url,
-            description=product_html.description,
+            price=product_browser.price,
+            sale_price=product_browser.sale_price,
+            rating=product_browser.rating,
+            review_count=product_browser.review_count,
+            image_url=product_browser.image_url,
+            product_url=product_browser.product_url,
+            description=product_browser.description,
         )
-    except Exception as html_error:
-        log_api_error(f"WB HTML parse error: {html_error}")
+    except Exception as playwright_error:
+        log_api_error(f"WB Playwright parse error: {playwright_error}")
         if last_error:
             raise WBError(WB_ANALYSIS_UNAVAILABLE_MESSAGE) from last_error
-        raise WBError(WB_ANALYSIS_UNAVAILABLE_MESSAGE) from html_error
+        raise WBError(WB_ANALYSIS_UNAVAILABLE_MESSAGE) from playwright_error
 
 
 async def fetch_wb_reviews(article: str) -> list[WBReview]:
@@ -301,13 +425,13 @@ async def fetch_wb_reviews(article: str) -> list[WBReview]:
                 continue
             except Exception:
                 continue
-    # Fallback: парсинг HTML если API не дал результат
+    # Fallback: парсинг через Playwright если API не дал результат
     try:
-        from app.services.wb_html_parser import parse_wb_reviews_html
+        from app.services.wb_playwright_parser import fetch_wb_reviews_via_browser
         url = f"https://www.wildberries.ru/catalog/{article}/detail.aspx"
-        reviews_html = parse_wb_reviews_html(url, max_reviews=50)
+        reviews_browser = await fetch_wb_reviews_via_browser(article, max_reviews=50)
         reviews = []
-        for r in reviews_html:
+        for r in reviews_browser:
             reviews.append(WBReview(
                 text=r.text,
                 rating=r.rating,
@@ -316,9 +440,9 @@ async def fetch_wb_reviews(article: str) -> list[WBReview]:
                 cons=""
             ))
         return reviews
-    except Exception as html_error:
+    except Exception as playwright_error:
         from app.services.error_logger import log_api_error
-        log_api_error(f"WB HTML reviews parse error: {html_error}")
+        log_api_error(f"WB Playwright reviews parse error: {playwright_error}")
         return []
 
 

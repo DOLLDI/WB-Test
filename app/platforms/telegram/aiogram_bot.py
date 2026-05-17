@@ -36,11 +36,18 @@ from app.services.wb import (
 from app.services.error_logger import PUBLIC_TECHNICAL_ERROR_MESSAGE, log_api_error
 import openai
 import os
+BOT_USERNAME = None
 
 BOT_TOKEN = settings.TELEGRAM_BOT_TOKEN
 bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 
+async def on_startup(bot: Bot):
+    global BOT_USERNAME
+    me = await bot.get_me()
+    BOT_USERNAME = me.username
+
+dp.startup.register(on_startup)
 
 def h(value) -> str:
     return escape("" if value is None else str(value), quote=False)
@@ -439,13 +446,26 @@ def format_profile_text(profile: dict, referral_stats: dict, recent_payments: li
     )
 
 
+# async def build_profile_payload(user_id: str):
+#     profile = await get_user_profile("telegram", user_id)
+#     referral_stats = await get_referral_stats("telegram", user_id)
+#     recent_payments = await get_recent_payments("telegram", user_id, 5)
+#     bot_me = await bot.get_me()
+#     referral_code = referral_stats.get("referral_code") or f"telegram_{user_id}"
+#     referral_link = f"https://t.me/{bot_me.username}?start={referral_code}" if bot_me.username else referral_code
+#     return profile, referral_stats, recent_payments, referral_link
 async def build_profile_payload(user_id: str):
     profile = await get_user_profile("telegram", user_id)
     referral_stats = await get_referral_stats("telegram", user_id)
     recent_payments = await get_recent_payments("telegram", user_id, 5)
-    bot_me = await bot.get_me()
+
     referral_code = referral_stats.get("referral_code") or f"telegram_{user_id}"
-    referral_link = f"https://t.me/{bot_me.username}?start={referral_code}" if bot_me.username else referral_code
+
+    if BOT_USERNAME:
+        referral_link = f"https://t.me/{BOT_USERNAME}?start={referral_code}"
+    else:
+        referral_link = referral_code
+
     return profile, referral_stats, recent_payments, referral_link
 
 
@@ -599,7 +619,7 @@ async def handle_message(message: Message, state: FSMContext):
     task = asyncio.create_task(animate_loading())
     try:
         if wb_article:
-            analysis = await analyze_wb_product(prompt)
+            analysis = await analyze_wb_product(wb_article)
             consumed, consume_reason = await consume_request_limit("telegram", user_id)
             if not consumed:
                 loading = False
@@ -698,6 +718,9 @@ def run():
 
     async def main():
         await init_db()
+
+        dp.startup.register(on_startup)  # 👈 ВОТ ЭТОГО НЕ ХВАТАЛО
+
         await dp.start_polling(bot)
 
     try:
