@@ -1,3 +1,54 @@
+# services:
+#   postgres:
+#     image: postgres:16-alpine
+#     container_name: proxyapi-postgres
+#     restart: unless-stopped
+#     environment:
+#       POSTGRES_DB: ${POSTGRES_DB:-proxyapi}
+#       POSTGRES_USER: ${POSTGRES_USER:-proxyapi}
+#       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-proxyapi}
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-proxyapi} -d ${POSTGRES_DB:-proxyapi}"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 5
+#       start_period: 10s
+
+#   proxyapi-bots:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: proxyapi-bots
+#     restart: unless-stopped
+#     env_file:
+#       - .env
+#       - .env.prompts
+#     environment:
+#       DB_BACKEND: ${DB_BACKEND:-postgres}
+#       DATABASE_URL: ${DATABASE_URL:-postgresql://proxyapi:proxyapi@postgres:5432/proxyapi}
+#       SQLITE_DB_PATH: /app/data/users.db
+#       ERROR_LOG_PATH: /app/data/proxyapi_errors.log
+#       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8000}
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#     ports:
+#       - "8000:8000"
+#     volumes:
+#       - ./data:/app/data
+#     healthcheck:
+#       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+#       interval: 30s
+#       timeout: 5s
+#       retries: 3
+#       start_period: 20s
+
+# volumes:
+#   postgres_data:
+version: "3.9"
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -38,12 +89,23 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+      - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 20s
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://proxyapi-bots:8000
+    depends_on:
+      - proxyapi-bots
+    volumes:
+      - ./shared:/app/shared
 
 volumes:
   postgres_data:
