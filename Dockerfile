@@ -64,7 +64,6 @@ RUN mkdir -p /app/data /app/logs
 
 # копируем код
 COPY app ./app
-COPY init_webhooks.py ./init_webhooks.py
 COPY entrypoint.sh ./entrypoint.sh
 
 # Делаем entrypoint выполняемым
