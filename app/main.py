@@ -12,42 +12,8 @@ from app.services.config import settings
 from app.services.db import init_db
 from app.services.fiscal import fiscal_retry_worker
 from app.services.logger import init_logging
-print("🔥 MAIN FILE IS RUNNING")
-# ----------------------------
-# CONFIG
-# ----------------------------
 
 
-# ----------------------------
-# WAIT CLOUDFLARED URL (FROM LOG FILE)
-# ----------------------------
-import re
-import os
-
-def wait_for_cloudflared_url():
-    """Получить публичный URL от cloudflared из log файла"""
-    print("⏳ Waiting for cloudflared tunnel URL...")
-    log_file = "/app/shared/cloudflared.log"
-    
-    for attempt in range(120):  # 120 попыток * 0.5сек = 60 сек максимум
-        try:
-            if os.path.exists(log_file):
-                with open(log_file, 'r') as f:
-                    content = f.read()
-                    # Ищем строку типа: "https://environments-pants-submissions-little.trycloudflare.com"
-                    match = re.search(r'https://[a-z0-9\-]+\.trycloudflare\.com', content)
-                    if match:
-                        url = match.group(0)
-                        print(f"✅ FOUND URL from cloudflared logs: {url}")
-                        return url
-            else:
-                print(f"⏳ retry {attempt}: log file not found yet")
-        except Exception as e:
-            print(f"⏳ retry {attempt}: {type(e).__name__} - {str(e)[:50]}")
-
-        time.sleep(0.5)
-
-    raise RuntimeError("❌ Cloudflared URL not found in logs after 120 attempts")
 
 # ----------------------------
 # TELEGRAM WEBHOOK
@@ -104,8 +70,6 @@ def set_vk_webhook(base_url: str):
 # ----------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🔥 LIFESPAN START")
-
     await init_db()
 
     payment_task = asyncio.create_task(payment_side_effects_retry_worker())
@@ -114,36 +78,14 @@ async def lifespan(app: FastAPI):
     if settings.MYTAX_API_URL and settings.MYTAX_API_TOKEN:
         fiscal_task = asyncio.create_task(fiscal_retry_worker())
 
+    print("🔥 APP STARTED")
+
     try:
-        base_url = await asyncio.to_thread(wait_for_cloudflared_url)
-        print(f"🌍 Public URL: {base_url}")
-
-        # Установка вебхуков
-        set_telegram_webhook(base_url)
-        set_vk_webhook(base_url)
-
-        print("🎉 WEBHOOKS CONFIGURED")
-
         yield
-
     finally:
-        print("🧹 Shutting down...")
-
         payment_task.cancel()
         if fiscal_task:
             fiscal_task.cancel()
-
-        await asyncio.gather(
-            payment_task,
-            fiscal_task if fiscal_task else asyncio.sleep(0),
-            return_exceptions=True
-        )
-
-        from app.platforms.telegram.aiogram_bot import bot
-        try:
-            await bot.session.close()
-        except Exception as e:
-            print(f"⚠️ Bot session close error: {e}")
 
 
 # ----------------------------
