@@ -1,16 +1,15 @@
-import datetime
 import re
 from html import escape
 from dataclasses import dataclass
 from typing import Optional
-
+import asyncio
 import httpx
 import openai
 
 from app.services.config import settings
 from app.services.error_logger import log_api_error
 from app.services.prompts import get_wb_summary_prompt
-
+from app.services.wb_search import search_wb_article
 WB_URL_RE = re.compile(r"wildberries\.ru/catalog/(\d+)/detail\.aspx", re.IGNORECASE)
 WB_ARTICLE_RE = re.compile(r"\b(\d{6,12})\b")
 WB_HEADERS = {
@@ -25,7 +24,6 @@ WB_HEADERS = {
 
 WB_TEMPORARY_UNAVAILABLE_MESSAGE = "WB временно ограничил доступ к данным, попробуйте через 15 минут."
 WB_ANALYSIS_UNAVAILABLE_MESSAGE = "Не удалось обработать данные Wildberries. Попробуйте позже."
-
 
 class WBError(Exception):
     pass
@@ -70,6 +68,23 @@ class WBAnalysisResult:
     total_reviews_loaded: int
 
 
+
+async def _safe_html_parse(article: str):
+    from app.services.wb_html_parser import parse_wb_product_html
+
+    url = f"https://www.wildberries.ru/catalog/{article}/detail.aspx"
+    last_error = None
+
+    for i in range(3):
+        try:
+            return await asyncio.to_thread(parse_wb_product_html, url)
+        except Exception as e:
+            last_error = e
+            await asyncio.sleep(1.5 + i)
+
+    raise last_error
+
+
 def extract_wb_article(text: str) -> Optional[str]:
     url_match = WB_URL_RE.search(text)
     if url_match:
@@ -93,14 +108,67 @@ def _parse_price(raw_value) -> Optional[float]:
 
 
 def _extract_products(payload: dict) -> list[dict]:
-    candidates = []
-    if isinstance(payload.get("data"), dict):
-        data = payload["data"]
-        if isinstance(data.get("products"), list):
-            candidates = data["products"]
-    if not candidates and isinstance(payload.get("products"), list):
-        candidates = payload["products"]
-    return [item for item in candidates if isinstance(item, dict)]
+    if not isinstance(payload, dict):
+        return []
+
+    data = payload.get("data")
+
+    if isinstance(data, dict):
+        products = data.get("products")
+        if isinstance(products, list):
+            return [p for p in products if isinstance(p, dict)]
+
+    products = payload.get("products")
+    if isinstance(products, list):
+        return [p for p in products if isinstance(p, dict)]
+
+    return []
+
+
+def _build_wb_image_url(article: str, image_number: int = 1) -> str:
+    try:
+        nm_id = int(article)
+    except (TypeError, ValueError):
+        return ""
+
+    vol = nm_id // 100000
+    part = nm_id // 1000
+    basket_ranges = [
+        (143, "01"),
+        (287, "02"),
+        (431, "03"),
+        (719, "04"),
+        (1007, "05"),
+        (1061, "06"),
+        (1115, "07"),
+        (1169, "08"),
+        (1313, "09"),
+        (1601, "10"),
+        (1655, "11"),
+        (1919, "12"),
+        (2045, "13"),
+        (2189, "14"),
+        (2405, "15"),
+        (2621, "16"),
+        (2837, "17"),
+        (3053, "18"),
+        (3269, "19"),
+        (3485, "20"),
+        (3701, "21"),
+        (3917, "22"),
+        (4133, "23"),
+    ]
+    basket = "24"
+    for max_vol, basket_number in basket_ranges:
+        if vol <= max_vol:
+            basket = basket_number
+            break
+
+    return (
+        f"https://basket-{basket}.wbbasket.ru/vol{vol}/part{part}/"
+        f"{nm_id}/images/big/{image_number}.webp"
+    )
+
 
 
 def _parse_card_product(product_data: dict, article: str) -> WBProduct:
@@ -118,6 +186,8 @@ def _parse_card_product(product_data: dict, article: str) -> WBProduct:
             first_media = media_files[0]
             if isinstance(first_media, str) and first_media.startswith("http"):
                 image_url = first_media
+    if not image_url and isinstance(pics, int) and pics > 0:
+        image_url = _build_wb_image_url(str(product_data.get("id") or article))
 
     return WBProduct(
         article=article,
@@ -212,52 +282,108 @@ def _build_summary_user_prompt(product: WBProduct, reviews: list[WBReview]) -> s
     )
 
 
-async def _fetch_json(client: httpx.AsyncClient, url: str, params: Optional[dict] = None) -> dict:
-    response = await client.get(url, params=params, headers=WB_HEADERS)
-    if response.status_code in (403, 429, 498):
-        raise WBTemporaryUnavailable(WB_TEMPORARY_UNAVAILABLE_MESSAGE)
-    if response.status_code == 404:
-        raise WBNotFound("Товар не найден в Wildberries.")
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict):
-        raise WBError("WB вернул неожиданный формат данных.")
-    return payload
+async def _fetch_json(
+    client: httpx.AsyncClient,
+    url: str,
+    params: Optional[dict] = None
+) -> dict:
+    last_error = None
+
+    for attempt in range(3):
+        try:
+            response = await client.get(
+                url,
+                params=params,
+                headers=WB_HEADERS,
+                timeout=20.0
+            )
+
+            if response.status_code in (403, 429, 498):
+                raise WBTemporaryUnavailable(WB_TEMPORARY_UNAVAILABLE_MESSAGE)
+
+            if response.status_code == 404:
+                raise WBNotFound("Товар не найден в Wildberries.")
+
+            response.raise_for_status()
+
+            payload = response.json()
+
+            if not isinstance(payload, dict):
+                raise WBError("WB вернул неожиданный формат данных.")
+
+            return payload
+
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            last_error = e
+            await asyncio.sleep(1.5 + attempt * 0.5)
+            continue
+
+    raise WBError(f"WB request failed after retries: {last_error}")
 
 
 async def fetch_wb_product(article: str) -> WBProduct:
+    last_error = None
+
+    nm_id = None
+
+    try:
+        search_data = await search_wb_article(article)
+
+        if search_data and search_data.get("nmId"):
+            nm_id = search_data["nmId"]
+
+    except Exception as e:
+        last_error = e
+        log_api_error(f"WB search failed: {e}")
+
+    query_id = str(nm_id) if nm_id else article
+
     candidate_calls = [
         (
-            "https://card.wb.ru/cards/v2/detail",
-            {"appType": 1, "curr": "rub", "dest": -1257786, "spp": 30, "nm": article},
+            "https://card.wb.ru/cards/v4/detail",
+            {"appType": 1, "curr": "rub", "dest": -1257786, "nm": query_id},
         ),
         (
             "https://card.wb.ru/cards/detail",
-            {"appType": 1, "curr": "rub", "dest": -1257786, "nm": article},
+            {"appType": 1, "curr": "rub", "dest": -1257786, "nm": query_id},
+        ),
+        (
+            "https://card.wb.ru/cards/detail",
+            {"appType": 1, "curr": "rub", "dest": -1027, "nm": query_id},
+        ),
+        (
+            "https://card.wb.ru/cards/v1/detail",
+            {"appType": 1, "curr": "rub", "dest": -1257786, "nm": query_id},
         ),
     ]
-    last_error = None
+
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
         for url, params in candidate_calls:
             try:
                 payload = await _fetch_json(client, url, params=params)
+
                 products = _extract_products(payload)
-                if not products:
-                    continue
-                return _parse_card_product(products[0], article)
+
+                if products:
+                    return _parse_card_product(products[0], query_id)
+
+                log_api_error(f"WB empty products: article={article}, query_id={query_id}")
+
             except WBTemporaryUnavailable:
                 raise
+
             except Exception as error:
                 last_error = error
+                log_api_error(
+                    f"WB card failed: url={url}, article={article}, query_id={query_id}, error={error}"
+                )
                 continue
-    # Fallback: парсинг HTML если API не дал результат
-    from app.services.error_logger import log_api_error
+
     try:
-        log_api_error(f"WB HTML fallback: start parsing article={article}")
-        from app.services.wb_html_parser import parse_wb_product_html
-        url = f"https://www.wildberries.ru/catalog/{article}/detail.aspx"
-        product_html = parse_wb_product_html(url)
-        log_api_error(f"WB HTML fallback: parse result for article={article}: {product_html}")
+        log_api_error(f"WB HTML fallback: article={article}, query_id={query_id}")
+
+        product_html = await _safe_html_parse(query_id)
+
         return WBProduct(
             article=product_html.article,
             title=product_html.title,
@@ -270,12 +396,11 @@ async def fetch_wb_product(article: str) -> WBProduct:
             product_url=product_html.product_url,
             description=product_html.description,
         )
-    except Exception as html_error:
-        log_api_error(f"WB HTML parse error: {html_error}")
-        if last_error:
-            raise WBError(WB_ANALYSIS_UNAVAILABLE_MESSAGE) from last_error
-        raise WBError(WB_ANALYSIS_UNAVAILABLE_MESSAGE) from html_error
 
+    except Exception as html_error:
+        log_api_error(f"WB HTML fallback failed: {html_error}")
+
+        raise WBError(WB_ANALYSIS_UNAVAILABLE_MESSAGE)
 
 async def fetch_wb_reviews(article: str) -> list[WBReview]:
     candidate_calls = [
@@ -297,15 +422,15 @@ async def fetch_wb_reviews(article: str) -> list[WBReview]:
                     return reviews
             except WBTemporaryUnavailable:
                 raise
-            except WBNotFound:
+            except WBNotFound as e:
+                last_error = e
                 continue
             except Exception:
                 continue
-    # Fallback: парсинг HTML если API не дал результат
     try:
         from app.services.wb_html_parser import parse_wb_reviews_html
         url = f"https://www.wildberries.ru/catalog/{article}/detail.aspx"
-        reviews_html = parse_wb_reviews_html(url, max_reviews=50)
+        reviews_html = await asyncio.to_thread(parse_wb_reviews_html, url, 50)
         reviews = []
         for r in reviews_html:
             reviews.append(WBReview(
@@ -316,8 +441,7 @@ async def fetch_wb_reviews(article: str) -> list[WBReview]:
                 cons=""
             ))
         return reviews
-    except Exception as html_error:
-        from app.services.error_logger import log_api_error
+    except Exception as html_error:    
         log_api_error(f"WB HTML reviews parse error: {html_error}")
         return []
 

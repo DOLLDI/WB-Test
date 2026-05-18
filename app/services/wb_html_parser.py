@@ -87,8 +87,3 @@ def parse_wb_reviews_html(url: str, max_reviews: int = 50) -> List[WBReviewHTML]
         reviews.append(WBReviewHTML(text=text, rating=rating, created_at=created_at))
     return reviews
 
-# Пример использования:
-# product = parse_wb_product_html("https://www.wildberries.ru/catalog/15141101/detail.aspx")
-# reviews = parse_wb_reviews_html("https://www.wildberries.ru/catalog/15141101/detail.aspx")
-# print(product)
-# print(reviews)

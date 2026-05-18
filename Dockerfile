@@ -14,7 +14,7 @@
 # EXPOSE 8000
 
 # CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-FROM python:3.11-slim
+FROM public.ecr.aws/docker/library/python:3.11-slim
 
 WORKDIR /app
 
@@ -50,6 +50,10 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+    -o /usr/local/bin/cloudflared \
+    && chmod +x /usr/local/bin/cloudflared
 
 # зависимости Python
 COPY requirements.txt .

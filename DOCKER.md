@@ -18,9 +18,9 @@ docker-compose up -d
 ```
 
 **Что запустится:**
-- `proxyapi-postgres` — PostgreSQL БД (опционально, по умолчанию используется SQLite)
+- `proxyapi-postgres` — PostgreSQL БД
 - `proxyapi-bots` — FastAPI приложение (порт 8000)
-- `cloudflared` — Cloudflare туннель для публичного доступа
+- `proxyapi-cloudflared` — бесплатный Cloudflare Quick Tunnel для публичного HTTPS URL
 
 ### 3. Проверка статуса
 
@@ -35,11 +35,12 @@ docker-compose logs cloudflared     # Cloudflare туннель
 После запуска приложение автоматически:
 - Получает URL от cloudflared
 - Устанавливает webhook Telegram
-- Выводит информацию о VK webhook в логи
+- Создаёт/обновляет VK Callback server, если заполнен `VK_GROUP_ID`
+- Если `VK_GROUP_ID` не задан, выводит готовый VK webhook URL в логи
 
 Проверь логи:
 ```bash
-docker-compose logs proxyapi-bots | grep -E "(FOUND URL|Telegram|WEBHOOKS)"
+docker-compose logs proxyapi-bots | grep -E "(Public webhook|Telegram webhook|VK callback|VK webhook)"
 ```
 
 ---
@@ -48,7 +49,7 @@ docker-compose logs proxyapi-bots | grep -E "(FOUND URL|Telegram|WEBHOOKS)"
 
 ### Database Backend
 
-По умолчанию используется **SQLite** (файл `users.db`).
+В `docker-compose.yml` по умолчанию используется **PostgreSQL**.
 
 Для использования **PostgreSQL**, измени `.env`:
 ```env
@@ -65,10 +66,13 @@ Webhook **устанавливается автоматически** через
 
 ### VK Webhook
 
-VK требует **ручной регистрации** в админке группы:
-1. Перейди в настройки группы → Управление → Callback API
-2. Введи URL (выводится в логах): `https://<cloudflared-url>/vk/webhook`
-3. Убедись, что токен подтверждения совпадает с `VK_CONFIRMATION_TOKEN` в `.env`
+VK webhook ставится автоматически, если в `.env` указаны:
+```env
+VK_GROUP_ID=123456789
+VK_AUTO_SET_CALLBACK=true
+```
+
+Если `VK_GROUP_ID` не задан, приложение всё равно выведет готовый URL: `https://<cloudflared-url>/vk/webhook`.
 
 ---
 

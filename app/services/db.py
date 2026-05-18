@@ -275,6 +275,13 @@ def utcnow_iso() -> str:
     return utcnow().replace(microsecond=0).isoformat(sep=" ")
 
 
+def db_timestamp_now() -> datetime.datetime | str:
+    now = utcnow().replace(microsecond=0)
+    if get_db_backend() == "postgres":
+        return now
+    return now.isoformat(sep=" ")
+
+
 def today_iso() -> str:
     return utcnow().date().isoformat()
 
@@ -362,7 +369,6 @@ async def get_recent_history(platform: str, user_id: str, limit: int = HISTORY_L
         rows = await cur.fetchall()
         return list(reversed(rows))
 
-# Удалить историю старше N дней
 async def delete_old_history(days: int = HISTORY_DAYS):
     cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=days)
     async with connect_db() as db:
@@ -373,7 +379,6 @@ async def delete_old_history(days: int = HISTORY_DAYS):
         )
         await db.commit()
 
-# Удалить всю историю пользователя
 async def delete_user_history(platform: str, user_id: str):
     async with connect_db() as db:
         await execute_query(
@@ -861,7 +866,7 @@ async def record_payment(
                 requests_added,
                 status,
                 external_payment_id,
-                utcnow_iso() if status == "paid" else None,
+                db_timestamp_now() if status == "paid" else None,
             )
         )
         await db.commit()
@@ -981,7 +986,7 @@ async def get_payment_by_external_id(external_payment_id: str):
 
 async def set_payment_status_by_external_id(external_payment_id: str, status: str):
     async with connect_db() as db:
-        paid_at = utcnow_iso() if status == "paid" else None
+        paid_at = db_timestamp_now() if status == "paid" else None
         await execute_query(
             db,
             """
@@ -1003,7 +1008,7 @@ async def mark_payment_paid_if_unpaid(external_payment_id: str) -> bool:
             SET status = 'paid', paid_at = ?
             WHERE external_payment_id = ? AND COALESCE(status, '') != 'paid'
             """,
-            (utcnow_iso(), external_payment_id)
+            (db_timestamp_now(), external_payment_id)
         )
         await db.commit()
         return cur.rowcount > 0
@@ -1112,7 +1117,7 @@ async def apply_payment_entitlements_if_needed(
                 entitlements_applied = 1
             WHERE external_payment_id = ?
             """,
-            (utcnow_iso(), external_payment_id)
+            (db_timestamp_now(), external_payment_id)
         )
         await db.commit()
         return "applied"
@@ -1172,7 +1177,7 @@ async def claim_payment_side_effects(
                 side_effects_last_error = NULL
             WHERE external_payment_id = ?
             """,
-            (utcnow_iso(), external_payment_id)
+            (db_timestamp_now(), external_payment_id)
         )
         await db.commit()
         payment["side_effects_status"] = "processing"
@@ -1196,7 +1201,7 @@ async def complete_payment_side_effects(
             """,
             (
                 "applied" if success else "failed",
-                utcnow_iso(),
+                db_timestamp_now(),
                 None if success else (error_text or "Unknown side effect error"),
                 external_payment_id,
             )
@@ -1241,7 +1246,7 @@ async def upsert_receipt(
     last_error: str | None = None,
 ):
     async with connect_db() as db:
-        sent_at = utcnow_iso() if sent else None
+        sent_at = db_timestamp_now() if sent else None
         await execute_query(
             db,
             """

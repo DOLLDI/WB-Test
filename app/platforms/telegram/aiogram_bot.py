@@ -4,7 +4,7 @@ from html import escape
 from html.parser import HTMLParser
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, BufferedInputFile
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -36,6 +36,8 @@ from app.services.wb import (
 from app.services.error_logger import PUBLIC_TECHNICAL_ERROR_MESSAGE, log_api_error
 import openai
 import os
+import httpx
+from io import BytesIO
 
 BOT_TOKEN = settings.TELEGRAM_BOT_TOKEN
 bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
@@ -84,10 +86,70 @@ class TelegramHTMLSanitizer(HTMLParser):
 
 
 def sanitize_telegram_html(value: str) -> str:
+    value = re.sub(r"(?i)<br\s*/?>", "\n", value or "")
+    value = re.sub(r"(?i)&lt;br\s*/?&gt;", "\n", value)
     sanitizer = TelegramHTMLSanitizer()
-    sanitizer.feed(value or "")
+    sanitizer.feed(value)
     sanitizer.close()
     return "".join(sanitizer.parts) or "Извините, ответ не получен от ИИ."
+
+
+async def download_telegram_photo(image_url: str) -> BufferedInputFile | None:
+    if not image_url:
+        return None
+
+    candidates = [image_url]
+    if image_url.lower().endswith(".webp"):
+        candidates.append(f"{image_url[:-5]}.jpg")
+    basket_match = re.search(r"https://basket-\d+\.wbbasket\.ru/(.+)", image_url, re.IGNORECASE)
+    if basket_match:
+        image_path = basket_match.group(1)
+        for basket_number in range(1, 80):
+            candidates.append(f"https://basket-{basket_number:02d}.wbbasket.ru/{image_path}")
+        if image_path.lower().endswith(".webp"):
+            jpg_path = f"{image_path[:-5]}.jpg"
+            for basket_number in range(1, 80):
+                candidates.append(f"https://basket-{basket_number:02d}.wbbasket.ru/{jpg_path}")
+    candidates = list(dict.fromkeys(candidates))
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Referer": "https://www.wildberries.ru/",
+    }
+    last_error = None
+    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers) as client:
+        for candidate in candidates:
+            try:
+                response = await client.get(candidate)
+                response.raise_for_status()
+                content_type = (response.headers.get("content-type") or "").lower()
+                if not content_type.startswith("image/") or not response.content:
+                    continue
+                extension = "jpg"
+                if "png" in content_type:
+                    extension = "png"
+                elif "webp" in content_type:
+                    extension = "webp"
+                if extension == "webp":
+                    try:
+                        from PIL import Image
+
+                        image = Image.open(BytesIO(response.content)).convert("RGB")
+                        output = BytesIO()
+                        image.save(output, format="JPEG", quality=90)
+                        return BufferedInputFile(output.getvalue(), filename="wb_product.jpg")
+                    except Exception as error:
+                        log_api_error(f"Telegram product photo convert failed: {error}")
+                return BufferedInputFile(response.content, filename=f"wb_product.{extension}")
+            except Exception as error:
+                last_error = f"url={candidate}, error={error}"
+    if last_error:
+        log_api_error(f"Telegram product photo download failed: {last_error}")
+    return None
 
 
 def format_ai_reply_for_telegram(reply: str) -> str:
@@ -141,7 +203,6 @@ def build_broadcast_preview_text(data: dict) -> str:
     )
 
 
-# FSM для админки
 class AdminPanel(StatesGroup):
     waiting_broadcast_text = State()
     waiting_broadcast_image = State()
@@ -149,10 +210,8 @@ class AdminPanel(StatesGroup):
     waiting_broadcast_button_url = State()
     confirm_broadcast = State()
 
-# Главное меню убрано для всех кром админа
 main_keyboard = None
 
-# Reply-клавиатура для админа
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 user_reply_keyboard = ReplyKeyboardMarkup(
     keyboard=[
@@ -168,7 +227,6 @@ admin_reply_keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Клавиатура админ-панели
 admin_keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text="Рассылка пользователям", callback_data="broadcast")],
@@ -177,7 +235,6 @@ admin_keyboard = InlineKeyboardMarkup(
     ]
 )
 
-# Клавиатура подтверждения рассылки 
 confirm_keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text="Подтвердить", callback_data="confirm_broadcast")],
@@ -194,7 +251,6 @@ profile_keyboard = InlineKeyboardMarkup(
 )
 
 
-# Вход в админ-панель
 @dp.message(Command("admin"))
 async def cmd_admin(message: Message, state: FSMContext):
     user_id = str(message.from_user.id)
@@ -221,7 +277,6 @@ async def cb_admin_panel(callback: CallbackQuery, state: FSMContext):
     else:
         await callback.answer("⛔️ Нет доступа", show_alert=True)
 
-# Кнопка "Выйти из админ-панели"
 @dp.callback_query(lambda c: c.data == "exit_admin")
 async def exit_admin(callback: CallbackQuery, state: FSMContext):
     try:
@@ -238,7 +293,6 @@ async def exit_admin(callback: CallbackQuery, state: FSMContext):
     await callback.answer("Вы вышли из админ-панели.", show_alert=True)
     await state.clear()
 
-# Кнопка "Статистика"
 @dp.callback_query(lambda c: c.data == "stats")
 async def admin_stats(callback: CallbackQuery, state: FSMContext):
     user_id = str(callback.from_user.id)
@@ -261,7 +315,6 @@ async def admin_stats(callback: CallbackQuery, state: FSMContext):
         pass
     await callback.message.answer(text, reply_markup=admin_keyboard)
 
-# Кнопка "Рассылка пользователям"
 @dp.callback_query(lambda c: c.data == "broadcast")
 async def admin_broadcast_start(callback: CallbackQuery, state: FSMContext):
     user_id = str(callback.from_user.id)
@@ -340,7 +393,6 @@ async def admin_broadcast_button_url(message: Message, state: FSMContext):
     await message.answer(build_broadcast_preview_text(data), reply_markup=confirm_keyboard)
     await state.set_state(AdminPanel.confirm_broadcast)
 
-# Подтверждение рассылки инлайн
 @dp.callback_query(lambda c: c.data == "confirm_broadcast")
 async def admin_broadcast_confirm(callback: CallbackQuery, state: FSMContext):
     import logging
@@ -375,7 +427,6 @@ async def admin_broadcast_confirm(callback: CallbackQuery, state: FSMContext):
         reply_markup=admin_keyboard,
     )
 
-# Отклонение рассылки 
 @dp.callback_query(lambda c: c.data == "cancel_broadcast")
 async def admin_broadcast_cancel(callback: CallbackQuery, state: FSMContext):
     try:
@@ -385,7 +436,6 @@ async def admin_broadcast_cancel(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Рассылка отменена.", reply_markup=admin_keyboard)
     await state.clear()
 
-# Хендлер команды /start и регистрация пользователя
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     user_id = str(message.from_user.id)
@@ -527,7 +577,6 @@ async def refresh_profile(callback: CallbackQuery):
     await callback.answer("Кабинет обновлён")
 
 
-# Основной хендлер сообщений 
 ADMIN_SERVICE_TEXTS = {
     "админ-панель",
     "рассылка пользователям",
@@ -597,6 +646,13 @@ async def handle_message(message: Message, state: FSMContext):
             await asyncio.sleep(0.5)
 
     task = asyncio.create_task(animate_loading())
+
+    async def finish_with_text(text: str):
+        try:
+            await msg.edit_text(text)
+        except Exception:
+            await message.answer(text)
+
     try:
         if wb_article:
             analysis = await analyze_wb_product(prompt)
@@ -619,7 +675,15 @@ async def handle_message(message: Message, state: FSMContext):
             except Exception:
                 pass
             if analysis.product.image_url:
-                await message.answer_photo(analysis.product.image_url, caption=preview_text)
+                try:
+                    photo = await download_telegram_photo(analysis.product.image_url)
+                    if photo:
+                        await message.answer_photo(photo, caption=preview_text)
+                    else:
+                        await message.answer(preview_text)
+                except Exception as photo_error:
+                    log_api_error(f"Telegram product photo send failed: {photo_error}")
+                    await message.answer(preview_text)
             else:
                 await message.answer(preview_text)
             safe_summary_html = sanitize_telegram_html(analysis.summary_html)
@@ -643,26 +707,25 @@ async def handle_message(message: Message, state: FSMContext):
     except WBTemporaryUnavailable as error:
         loading = False
         await task
-        await msg.edit_text(str(error))
+        await finish_with_text(str(error))
     except WBNotFound as error:
         loading = False
         await task
-        await msg.edit_text(str(error))
+        await finish_with_text(str(error))
     except WBError as error:
         loading = False
         await task
         log_api_error(f"WBError: {error}")
-        await msg.edit_text(str(error))
+        await finish_with_text(str(error))
     except Exception as e:
         loading = False
         await task
         import traceback
         tb = traceback.format_exc()
         log_api_error(f"Telegram API error: {e}\n{tb}")
-        await msg.edit_text(PUBLIC_TECHNICAL_ERROR_MESSAGE)
+        await finish_with_text(PUBLIC_TECHNICAL_ERROR_MESSAGE)
 
 
-# Генератор для стриминга 
 async def proxyapi_stream_with_context(messages):
     import logging
     logging.warning(
@@ -682,8 +745,6 @@ async def proxyapi_stream_with_context(messages):
     yield response.choices[0].message.content or ""
 
 
-
-# Функция для запуска aiogram-бота с БД
 
 
 def run():

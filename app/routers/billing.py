@@ -259,7 +259,10 @@ async def billing_webhook(request: Request, x_billing_signature: str = Header(de
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from error
 
     provider = settings.PAYMENT_PROVIDER.lower()
-    if provider not in {"yookassa", "robokassa"} and not verify_webhook_signature(raw_body, x_billing_signature):
+    if provider == "robokassa":
+        raise HTTPException(status_code=400, detail="Use /billing/robokassa/result for Robokassa callbacks")
+
+    if provider != "yookassa" and not verify_webhook_signature(raw_body, x_billing_signature):
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
     external_payment_id = extract_webhook_external_payment_id(payload)

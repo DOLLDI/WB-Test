@@ -146,9 +146,6 @@ def format_broadcast_notice(*results: dict) -> str:
 
 @router.get('/stats')
 async def stats(x_admin_token: str = Header(...), x_admin_id: str = Header(...)):
-    """
-    Возвращает статистику пользователей и запросов по платформам и всего.
-    """
     check_admin_access(x_admin_token, x_admin_id)
     rows = await get_stats()
     result = {}
@@ -164,10 +161,6 @@ async def stats(x_admin_token: str = Header(...), x_admin_id: str = Header(...))
 
 @router.post('/broadcast')
 async def do_broadcast(text: str = Body(...), x_admin_token: str = Header(...), x_admin_id: str = Header(...)):
-    """
-    Рассылает сообщение всем пользователям Telegram и VK.
-    Тело запроса: {"text": "..."}
-    """
     check_admin_access(x_admin_token, x_admin_id)
     from app.platforms.telegram.aiogram_bot import bot
     tg_result = await tg_broadcast(text, bot)

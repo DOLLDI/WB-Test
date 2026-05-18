@@ -10,9 +10,6 @@ async def broadcast(
     button_text: str | None = None,
     button_url: str | None = None,
 ):
-    """
-    Рассылка сообщения всем пользователям Telegram, кроме самого бота.
-    """
     bot_id = (await bot.get_me()).id
     attempted = 0
     sent = 0

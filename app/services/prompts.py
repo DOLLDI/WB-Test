@@ -4,7 +4,20 @@ def get_system_prompt():
     """
     Возвращает системный промпт для Telegram из настроек (.env.prompts)
     """
-    return settings.TELEGRAM_SYSTEM_PROMPT or ""
+    return settings.TELEGRAM_SYSTEM_PROMPT or (
+        "Ты дружелюбный помощник. Отвечай кратко, структурированно и в Markdown: "
+        "используй **жирные заголовки**, списки и уместные эмодзи."
+    )
+
+
+def get_vk_system_prompt():
+    """
+    Возвращает системный промпт для VK из настроек (.env.prompts)
+    """
+    return settings.VK_SYSTEM_PROMPT or (
+        "Ты дружелюбный помощник. Отвечай кратко, структурированно и в Markdown-like стиле: "
+        "используй **жирные заголовки**, списки и уместные эмодзи."
+    )
 
 
 def get_wb_summary_prompt():

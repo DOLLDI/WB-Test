@@ -1,5 +1,6 @@
 import re
 import json
+from html import unescape
 
 from app.shared.types import VKCallback
 from app.platforms.vk.vk_utils import edit_message, send_message, upload_message_photo
@@ -17,6 +18,7 @@ from app.services.db import (
 )
 from app.services.config import settings
 from app.services.error_logger import log_api_error
+from app.services.prompts import get_vk_system_prompt
 from app.services.rate_limit import vk_rate_limiter
 from app.services.wb import (
     WBError,
@@ -179,7 +181,14 @@ async def handle_referral_command(peer_id: str, text: str):
 
 
 def _strip_html(text: str) -> str:
-    return re.sub(r"<[^>]+>", "", text or "").strip()
+    value = text or ""
+    value = re.sub(r"</?(b|strong)>", "**", value, flags=re.IGNORECASE)
+    value = re.sub(r"</?(i|em)>", "*", value, flags=re.IGNORECASE)
+    value = re.sub(r"</?code>", "`", value, flags=re.IGNORECASE)
+    value = re.sub(r"<br\s*/?>", "\n", value, flags=re.IGNORECASE)
+    value = re.sub(r"</p\s*>", "\n", value, flags=re.IGNORECASE)
+    value = re.sub(r"<[^>]+>", "", value)
+    return unescape(value).strip()
 
 
 def format_wb_preview_text(analysis) -> str:
@@ -194,7 +203,7 @@ def format_wb_preview_text(analysis) -> str:
 
 async def call_proxy(prompt: str) -> str:
     url = settings.PROXYAPI_URL.rstrip("/") + "/chat/completions"
-    system_prompt = settings.VK_SYSTEM_PROMPT or ""
+    system_prompt = get_vk_system_prompt()
     payload = {
         "model": "gpt-3.5-turbo",
         "messages": [
@@ -216,7 +225,6 @@ async def call_proxy(prompt: str) -> str:
             r = await client.post(url, json=payload, headers=headers)
             r.raise_for_status()
             j = r.json()
-            # Совместимость с OpenAI/ProxyAPI
             if "choices" in j and j["choices"]:
                 return j["choices"][0]["message"]["content"]
             fallback_reply = j.get('reply') or j.get('response') or j.get('text')
@@ -247,7 +255,6 @@ async def handle_event(data: dict):
         )
         if not text or message_id is None:
             return
-        # Защита от дублей
         if await is_vk_message_processed(message_id):
             logging.warning(f"VK DUPLICATE: message_id={message_id} уже обработан, пропуск")
             return
@@ -302,7 +309,6 @@ async def handle_event(data: dict):
                 await send_message(int(peer_id), reason)
             return
         await mark_vk_message_processed(message_id)
-        # Анимация  
         import asyncio
         thinking_msgs = ["Думаю над ответом.", "Думаю над ответом..", "Думаю над ответом..."]
         msg_send = await send_message(int(peer_id), thinking_msgs[0])
@@ -314,7 +320,6 @@ async def handle_event(data: dict):
                 sent_id = sent_id.get('message_id')
             elif isinstance(sent_id, list) and sent_id:
                 sent_id = sent_id[0]
-        # Ограничение на 3 анимации, чтобы не спамить VK
         for anim in thinking_msgs[1:]:
             await asyncio.sleep(0.7)
             if sent_id:
@@ -386,7 +391,6 @@ async def handle_event(data: dict):
                 return
             await increment_requests("vk", peer_id)
 
-        # Финальный ответ\ошибка
         if reply:
             history_reply = reply
             if wb_article:

@@ -13,8 +13,9 @@ nano .env  # или используй IDE/текстовый редактор
 # - TELEGRAM_BOT_TOKEN
 # - VK_GROUP_TOKEN
 # - VK_CONFIRMATION_TOKEN
+# - VK_GROUP_ID (если нужен авто-webhook VK)
 # - PROXYAPI_URL
-# - OPENAI_API_KEY
+# - PROXYAPI_KEY
 # - ADMIN_IDS
 ```
 
@@ -35,9 +36,9 @@ docker-compose ps
 **Ожидаемый вывод:**
 ```
 NAME                        STATUS
-postgres                    Up (healthy)
-proxyapi-bots              Up (healthy)
-cloudflared                Up
+proxyapi-postgres           Up (healthy)
+proxyapi-bots               Up (healthy)
+proxyapi-cloudflared        Up
 ```
 
 ---
@@ -49,44 +50,21 @@ cloudflared                Up
 docker-compose logs proxyapi-bots -f
 
 # Ищи строки:
-# - "✅ FOUND URL via HTTP API" или "via docker logs"
+# - "✅ Public webhook base URL: https://....trycloudflare.com"
 # - "✅ Telegram webhook set successfully"
-# - "🎉 WEBHOOKS CONFIGURED"
+# - "✅ VK callback server ready" или подсказку добавить VK_GROUP_ID
 ```
 
 ---
 
-## 4️⃣ Получи публичный URL для вебхуков
+## 4️⃣ Публичный URL и вебхуки
 
-```bash
-# Способ 1: Из логов
-docker-compose logs cloudflared | grep trycloudflare
+Ничего руками подключать не нужно:
+- Cloudflare Quick Tunnel создаёт бесплатный публичный HTTPS URL.
+- Приложение само ставит Telegram webhook.
+- VK Callback server создаётся/обновляется автоматически, если указан `VK_GROUP_ID`.
 
-# Способ 2: Напрямую из API cloudflared
-curl http://localhost:4040/api/tunnels
-
-# Пример ответа:
-# {
-#   "tunnels": [
-#     {
-#       "public_url": "https://abc123def.trycloudflare.com"
-#     }
-#   ]
-# }
-```
-
----
-
-## 5️⃣ Настройка VK вебхука (требуется ручная регистрация)
-
-1. Перейди в [VK Admin](https://vk.com/clubID/settings?act=api) (замени clubID на ID твоей группы)
-2. Перейди в **Управление → Callback API**
-3. Добавь **Callback server**:
-   - **URL**: `https://<твой-cloudflared-url>/vk/webhook`
-   - **Версия API**: Самая новая
-4. Установи **Confirmation Token** из `.env` в **VK_CONFIRMATION_TOKEN**
-5. Нажми "Подтвердить сервер"
-6. Включи события, которые нужны (сообщения, etc.)
+Если `VK_GROUP_ID` не указан, URL для VK будет напечатан в логах приложения.
 
 ---
 
@@ -114,7 +92,7 @@ TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 VK_GROUP_TOKEN=vk1.a.ExAmPlEtOkEnHeRe1234567890
 VK_CONFIRMATION_TOKEN=12a3b4c5d
 PROXYAPI_URL=https://api.proxy.example.com
-OPENAI_API_KEY=sk-proj-XXXXX
+PROXYAPI_KEY=proxyapi-key
 ADMIN_IDS=123456789
 ```
 
@@ -131,7 +109,7 @@ curl http://localhost:8000/health
 docker-compose exec postgres pg_isready -U proxyapi
 
 # Проверь Cloudflare туннель
-curl http://localhost:4040/api/tunnels
+docker-compose logs cloudflared | grep trycloudflare
 ```
 
 ---
