@@ -15,9 +15,6 @@ from app.services.logger import init_logging
 
 
 
-# ----------------------------
-# TELEGRAM WEBHOOK
-# ----------------------------
 def set_telegram_webhook(base_url: str):
     token = settings.TELEGRAM_BOT_TOKEN
 
@@ -46,9 +43,6 @@ def set_telegram_webhook(base_url: str):
         print("❌ Telegram webhook error:", e)
 
 
-# ----------------------------
-# VK WEBHOOK
-# ----------------------------
 def set_vk_webhook(base_url: str):
     """VK использует push callbacks — нужно зарегистрировать в админке группы"""
     token = settings.VK_GROUP_TOKEN
@@ -65,9 +59,7 @@ def set_vk_webhook(base_url: str):
 
 
 
-# ----------------------------
-# LIFESPAN (ONLY ONE)
-# ----------------------------
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
@@ -88,16 +80,10 @@ async def lifespan(app: FastAPI):
             fiscal_task.cancel()
 
 
-# ----------------------------
-# APP
-# ----------------------------
 init_logging()
 app = FastAPI(lifespan=lifespan)
 
 
-# ----------------------------
-# ERROR MIDDLEWARE
-# ----------------------------
 import traceback
 from fastapi import Request
 from fastapi.responses import JSONResponse
